@@ -19,7 +19,7 @@ use Kdyby\Doctrine\Entities\MagicAccessors;
 /**
  * Class Images
  *
- * @ORM\Entity(repositoryClass="PhantomModule\Repositories\PhantomRepository")
+ * @ORM\Entity(repositoryClass="Devrun\PhantomModule\Repositories\PhantomRepository")
  * @ORM\Table(name="phantom_images", indexes={
  *     @ORM\Index(name="phantom_identifier_idx", columns={"identifier"}),
  *     @ORM\Index(name="phantom_namespace_name_idx", columns={"namespace", "name"}),
