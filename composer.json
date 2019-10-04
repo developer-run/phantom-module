@@ -1,0 +1,49 @@
+{
+  "name": "devrun/phantom-module",
+  "description": "DevRun Phantom module to create web screen",
+  "keywords": ["cms", "devrun", "phantom"],
+  "homepage": "http://devrun.cz",
+  "license": "proprietary",
+  "authors": [
+    {
+      "name": "Pavel Paulík"
+    }
+  ],
+  "require": {
+    "php":">=7.0",
+    "jonnyw/php-phantomjs": "^4.6"
+  },
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/developer-run/framework"
+    },
+    {
+      "type": "vcs",
+      "url": "https://github.com/developer-run/cms-module"
+    }
+  ],
+  "autoload": {
+    "classmap": ["src/"]
+  },
+  "scripts": {
+    "post-install-cmd": [
+      "PhantomInstaller\\Installer::installPhantomJS"
+    ],
+    "post-update-cmd": [
+      "PhantomInstaller\\Installer::installPhantomJS"
+    ]
+  },
+  "extra": {
+    "branch-alias": {
+      "dev-master": "0.1-dev"
+    },
+    "devrun": {
+      "configuration": {
+        "extensions": {
+          "phantom": "Devrun\\PhantomModule\\DI\\PhantomExtension"
+        }
+      }
+    }
+  }
+}
