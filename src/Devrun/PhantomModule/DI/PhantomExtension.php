@@ -10,6 +10,8 @@
 namespace Devrun\PhantomModule\DI;
 
 use Devrun\Config\CompilerExtension;
+use Devrun\PhantomModule\Facades\PhantomFacade;
+use Devrun\PhantomModule\Repositories\PhantomRepository;
 use Kdyby\Doctrine\DI\IEntityProvider;
 use Kdyby\Doctrine\DI\OrmExtension;
 use Devrun\PhantomModule\Entities\ImageEntity;
@@ -18,7 +20,7 @@ class PhantomExtension extends CompilerExtension implements IEntityProvider
 {
 
     public $defaults = array(
-        'phantom-bin' => '%appDir%/../bin/phantomjs',
+        'phantom-bin' => '%libsDir%/bin/phantomjs',
         'width'       => 1920,
         'height'      => 1280,
         'tempImage'   => 'webTemp/preview.jpg',
@@ -34,11 +36,11 @@ class PhantomExtension extends CompilerExtension implements IEntityProvider
 
 
         $builder->addDefinition($this->prefix('repository.phantom'))
-            ->setFactory('PhantomModule\Repositories\PhantomRepository')
-            ->addTag(OrmExtension::TAG_REPOSITORY_ENTITY, ImageEntity::class);
+                ->setType(PhantomRepository::class)
+                ->addTag(OrmExtension::TAG_REPOSITORY_ENTITY, ImageEntity::class);
 
         $builder->addDefinition($this->prefix('facade.phantom'))
-            ->setFactory('PhantomModule\Facades\PhantomFacade', [$config['phantom-bin'], $config['tempImage'], $config['width'], $config['height']]);
+                ->setFactory(PhantomFacade::class, [$config['phantom-bin'], $config['tempImage'], $config['width'], $config['height']]);
 
     }
 
@@ -51,7 +53,7 @@ class PhantomExtension extends CompilerExtension implements IEntityProvider
     public function getEntityMappings()
     {
         return array(
-            'PhantomModule' => dirname(__DIR__) . '/Entities/',
+            'Devrun\PhantomModule' => dirname(__DIR__) . '/Entities/',
         );
 
     }
