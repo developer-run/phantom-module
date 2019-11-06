@@ -35,9 +35,6 @@
     ]
   },
   "extra": {
-    "branch-alias": {
-      "dev-master": "*-dev"
-    },
     "devrun": {
       "configuration": {
         "extensions": {
