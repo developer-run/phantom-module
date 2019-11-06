@@ -23,7 +23,7 @@ class PhantomExtension extends CompilerExtension implements IEntityProvider
         'phantom-bin' => '%libsDir%/bin/phantomjs',
         'width'       => 1920,
         'height'      => 1280,
-        'tempImage'   => 'webTemp/preview.jpg',
+        'tempImage'   => '%wwwCacheDir%/preview.jpg',
     );
 
 

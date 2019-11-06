@@ -12,10 +12,10 @@ namespace Devrun\PhantomModule\Facades;
 use Devrun\CmsModule\Entities\RouteEntity;
 use Devrun\FileNotFoundException;
 use Devrun\InvalidStateException;
-use Devrun\Storage\ImageNameScript;
-use Devrun\Storage\ImageStorage;
 use Devrun\PhantomModule\Entities\ImageEntity;
 use Devrun\PhantomModule\Repositories\PhantomRepository;
+use Devrun\Storage\ImageNameScript;
+use Devrun\Storage\ImageStorage;
 use JonnyW\PhantomJs\Client;
 use JonnyW\PhantomJs\Http\CaptureRequest;
 use Nette\Application\LinkGenerator;
@@ -54,11 +54,13 @@ class PhantomFacade
     /**
      * PhantomFacade constructor.
      *
-     * @param string            $phantomBin
-     * @param int               $width
-     * @param int               $height
+     * @param string $phantomBin
+     * @param string $tempImage
+     * @param int $width
+     * @param int $height
+     * @param LinkGenerator $linkGenerator
      * @param PhantomRepository $phantomRepository
-     * @param ImageStorage      $imageStorage
+     * @param ImageStorage $imageStorage
      */
     public function __construct(string $phantomBin, string $tempImage, int $width, int $height, LinkGenerator $linkGenerator, PhantomRepository $phantomRepository, ImageStorage $imageStorage)
     {
