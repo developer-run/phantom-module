@@ -4,6 +4,7 @@
   "keywords": ["cms", "devrun", "phantom"],
   "homepage": "http://devrun.cz",
   "license": "proprietary",
+  "version": "v4.6.1",
   "authors": [
     {
       "name": "Pavel Paulík"
@@ -11,7 +12,8 @@
   ],
   "require": {
     "php":">=7.0",
-    "jonnyw/php-phantomjs": "^4.6"
+    "jonnyw/php-phantomjs": "^4.6",
+    "ext-fileinfo": "*"
   },
   "repositories": [
     {
@@ -35,6 +37,9 @@
     ]
   },
   "extra": {
+    "branch-alias": {
+      "dev-master": "4.6-dev"
+    },
     "devrun": {
       "configuration": {
         "extensions": {

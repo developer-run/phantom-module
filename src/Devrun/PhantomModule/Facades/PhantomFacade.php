@@ -156,6 +156,9 @@ class PhantomFacade
 
     /**
      * @param ImageEntity $imageEntity
+     * @throws \JonnyW\PhantomJs\Exception\NotWritableException
+     * @throws \Nette\Application\UI\InvalidLinkException
+     * @throws \Nette\Utils\UnknownImageFileException
      */
     private function updateIdentifier(ImageEntity & $imageEntity)
     {
