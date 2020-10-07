@@ -4,7 +4,6 @@
   "keywords": ["cms", "devrun", "phantom"],
   "homepage": "http://devrun.cz",
   "license": "proprietary",
-  "version": "v4.6.1",
   "authors": [
     {
       "name": "Pavel Paulík"

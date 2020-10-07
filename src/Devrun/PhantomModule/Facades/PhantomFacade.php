@@ -11,7 +11,6 @@ namespace Devrun\PhantomModule\Facades;
 
 use Devrun\CmsModule\Entities\RouteEntity;
 use Devrun\FileNotFoundException;
-use Devrun\InvalidStateException;
 use Devrun\PhantomModule\Entities\ImageEntity;
 use Devrun\PhantomModule\Repositories\PhantomRepository;
 use Devrun\Storage\ImageNameScript;
@@ -19,7 +18,6 @@ use Devrun\Storage\ImageStorage;
 use JonnyW\PhantomJs\Client;
 use JonnyW\PhantomJs\Http\CaptureRequest;
 use Nette\Application\LinkGenerator;
-use Nette\Application\UI\Component;
 use Nette\Utils\Validators;
 
 class PhantomFacade
@@ -37,16 +35,19 @@ class PhantomFacade
     /** @var ImageStorage */
     private $imageStorage;
 
-    /** @var Component */
-    private $_presenter;
-
     /** @var string [webTemp/preview.jpg] */
     private $tempImage;
+
+    /** @var string [www] */
+    private $wwwDir;
+
+    /** @var bool */
+    private $syncLoad = true;
 
     private $capturePageOptions = [
         'width'          => 1920,
         'height'         => 1280,
-        'captureDelay'   => 1,
+        'captureDelay'   => 3,
         'captureTimeOut' => 1000,
     ];
 
@@ -54,6 +55,7 @@ class PhantomFacade
     /**
      * PhantomFacade constructor.
      *
+     * @param string $wwwDir
      * @param string $phantomBin
      * @param string $tempImage
      * @param int $width
@@ -61,14 +63,31 @@ class PhantomFacade
      * @param LinkGenerator $linkGenerator
      * @param PhantomRepository $phantomRepository
      * @param ImageStorage $imageStorage
+     * @throws \Nette\Utils\AssertionException
      */
-    public function __construct(string $phantomBin, string $tempImage, int $width, int $height, LinkGenerator $linkGenerator, PhantomRepository $phantomRepository, ImageStorage $imageStorage)
+    public function __construct(array $config, LinkGenerator $linkGenerator, PhantomRepository $phantomRepository, ImageStorage $imageStorage)
     {
+        Validators::assert($config['wwwDir'], 'string');
+        Validators::assert($config['phantom-bin'], 'string');
+        Validators::assert($config['tempImage'], 'string');
+        Validators::assert($config['width'], 'int');
+        Validators::assert($config['height'], 'int');
+        Validators::assert($config['syncLoad'], 'bool');
+
+        $wwwDir     = $config['wwwDir'];
+        $phantomBin = $config['phantom-bin'];
+        $tempImage  = $config['tempImage'];
+        $width      = $config['width'];
+        $height     = $config['height'];
+        $syncLoad   = $config['syncLoad'];
+
         $this->setInstance($phantomBin);
         $this->phantomRepository            = $phantomRepository;
         $this->linkGenerator                = $linkGenerator;
         $this->imageStorage                 = $imageStorage;
         $this->tempImage                    = $tempImage;
+        $this->wwwDir                       = $wwwDir;
+        $this->syncLoad                     = $syncLoad;
         $this->capturePageOptions['width']  = $width;
         $this->capturePageOptions['height'] = $height;
     }
@@ -90,31 +109,6 @@ class PhantomFacade
     public function getInstance()
     {
         return $this->instance;
-    }
-
-    /**
-     * @deprecated use linkGenerator instead
-     * @return Component
-     */
-    private function getPresenter(): Component
-    {
-        if (null === $this->_presenter) {
-            throw new InvalidStateException("setPresenter first, this is necessary for link generate.");
-        }
-
-        return $this->_presenter;
-    }
-
-
-    /**
-     * @param Component $presenter
-     *
-     * @return PhantomFacade
-     */
-    public function setPresenter(Component $presenter): PhantomFacade
-    {
-        $this->_presenter = $presenter;
-        return $this;
     }
 
     /**
@@ -156,9 +150,12 @@ class PhantomFacade
 
     /**
      * @param ImageEntity $imageEntity
+     *
      * @throws \JonnyW\PhantomJs\Exception\NotWritableException
      * @throws \Nette\Application\UI\InvalidLinkException
      * @throws \Nette\Utils\UnknownImageFileException
+     *
+     * @return \JonnyW\PhantomJs\Http\ResponseInterface
      */
     private function updateIdentifier(ImageEntity & $imageEntity)
     {
@@ -166,11 +163,7 @@ class PhantomFacade
             $this->imageStorage->delete($imageEntity->getIdentifier());
         }
 
-        $routeEntity = $imageEntity->getRoute();
-
-        // $link = $this->getPresenter()->link("//" . $routeEntity->getUri(), $routeEntity->getParams());
-        $link = $this->linkGenerator->link(ltrim($routeEntity->getUri(), ':'), $routeEntity->getParams());
-
+        $link   = $this->getRouteLink($routeEntity = $imageEntity->getRoute());
         $client = $this->getInstance();
 
         /** @var CaptureRequest $request */
@@ -196,16 +189,19 @@ class PhantomFacade
         $response = $client->getMessageFactory()->createResponse();
 
         // Send the request
-        $client->send($request, $response);
+        $result = $client->send($request, $response);
+
+        if ($result->getStatus() != 200) {
+            return $result;
+        }
 
         if (!file_exists($this->tempImage)) {
             throw new FileNotFoundException($this->tempImage);
         }
 
-        $url     = $routeEntity->getUrl();
         $content = file_get_contents($this->tempImage);
-
-        $script = ImageNameScript::fromIdentifier($referenceIdentifier = "capture/$url/preview.jpg");
+        $referenceIdentifier = $this->generateReferenceName($routeEntity);
+        $script = ImageNameScript::fromIdentifier($referenceIdentifier);
 
         $fileName  = implode('.', [$script->name, $script->extension]);
         $namespace = implode('/', [$script->namespace, $script->prefix]);
@@ -214,7 +210,8 @@ class PhantomFacade
         $image     = $this->imageStorage->saveContent($content, $fileName, $namespace);
         $scriptNew = ImageNameScript::fromIdentifier($image->identifier);
 
-        unlink($this->tempImage);
+        $type = finfo_file(finfo_open(FILEINFO_MIME_TYPE), $this->tempImage);
+        @unlink($this->tempImage);
 
         $imageEntity
             ->setReferenceIdentifier($referenceIdentifier)
@@ -227,32 +224,70 @@ class PhantomFacade
             ->setPath($image->createLink())
             ->setWidth($img->getWidth())
             ->setHeight($img->getHeight())
-            ->setType(finfo_file(finfo_open(FILEINFO_MIME_TYPE), $image->createLink()));
+            ->setType($type);
 
         $this->phantomRepository->getEntityManager()->persist($imageEntity)->flush();
+        return $result;
     }
 
 
     /**
      * @param RouteEntity $routeEntity
+     * @param bool $withOutGenerateDomain
+     * @param bool $absolute
+     * @return string
+     * @throws \Nette\Application\UI\InvalidLinkException
+     */
+    public function getRouteLink(RouteEntity $routeEntity, bool $withOutGenerateDomain = false, bool $absolute = false): string
+    {
+        $params = $routeEntity->getParams();
+        $params['package'] = $routeEntity->getPackage()->getId();
+        if ($withOutGenerateDomain) {
+            $params['generateDomain'] = false;
+        }
+        if (isset($params['id']) && $params['id'] == "?") {
+            $params['id'] = 1;
+        }
+
+        $filteredUri = ltrim($routeEntity->getUri(), ':');
+
+        return $absolute
+            ? $this->linkGenerator->link("//{$filteredUri}", $params)
+            : $this->linkGenerator->link("{$filteredUri}", $params);
+    }
+
+    /**
+     * @param RouteEntity $routeEntity
      *
      * @return ImageEntity
+     * @throws \JonnyW\PhantomJs\Exception\NotWritableException
+     * @throws \Nette\Application\UI\InvalidLinkException
+     * @throws \Nette\Utils\UnknownImageFileException
      */
     private function createIdentifierFromRoute(RouteEntity $routeEntity): ImageEntity
     {
         $imageEntity = new ImageEntity($routeEntity);
-        $this->updateIdentifier($imageEntity);
+
+        if ($this->syncLoad) {
+            $this->updateIdentifier($imageEntity);
+
+        } else {
+            $imageEntity->setIdentifier($this->generateReferenceName($routeEntity));
+            $imageEntity->setReferenceIdentifier($this->generateReferenceName($routeEntity));
+            $imageEntity->setPath('?');
+        }
 
         return $imageEntity;
     }
 
 
-    private function checkIdentifierFromRoute(ImageEntity $imageEntity)
-    {
-        return file_exists($imageEntity->getPath());
-    }
-
-
+    /**
+     * @param RouteEntity $routeEntity
+     * @return ImageEntity
+     * @throws \JonnyW\PhantomJs\Exception\NotWritableException
+     * @throws \Nette\Application\UI\InvalidLinkException
+     * @throws \Nette\Utils\UnknownImageFileException
+     */
     public function getIdentifierFromRoute(RouteEntity $routeEntity)
     {
         /** @var ImageEntity $imageEntity */
@@ -260,11 +295,47 @@ class PhantomFacade
             $imageEntity = $this->createIdentifierFromRoute($routeEntity);
         }
 
-        if (!$this->checkIdentifierFromRoute($imageEntity)) {
-            $this->updateIdentifier($imageEntity);
+        if ($this->syncLoad) {
+            if (!$this->checkIdentifierFromRoute($imageEntity)) {
+                $this->updateIdentifier($imageEntity);
+            }
         }
 
         return $imageEntity;
+    }
+
+    /**
+     * @param RouteEntity $routeEntity
+     * @return mixed|object|ImageEntity|null
+     * @throws \JonnyW\PhantomJs\Exception\NotWritableException
+     * @throws \Nette\Application\UI\InvalidLinkException
+     * @throws \Nette\Utils\UnknownImageFileException
+     */
+    public function updateFromRoute(RouteEntity $routeEntity)
+    {
+        if (!$imageEntity = $this->phantomRepository->findOneBy(['route' => $routeEntity])) {
+            $imageEntity = new ImageEntity($routeEntity);
+        }
+
+        $response = $this->updateIdentifier($imageEntity);
+        return ['response' => $response, 'image' => $imageEntity];
+    }
+
+
+
+    private function checkIdentifierFromRoute(ImageEntity $imageEntity)
+    {
+        return file_exists($this->wwwDir . DIRECTORY_SEPARATOR . $imageEntity->getPath());
+    }
+
+    /**
+     * @param RouteEntity $routeEntity
+     * @return string
+     */
+    private function generateReferenceName(RouteEntity $routeEntity): string
+    {
+        $url     = $routeEntity->getUrl();
+        return "capture/$url/preview.jpg";
     }
 
 
